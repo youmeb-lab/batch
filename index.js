@@ -93,6 +93,7 @@ batch.final = function () {
 
 batch.done = function () {
   return (function (cb) {
+    this.once('error', cb);
     this.once('end', cb);
   }).bind(this);
 };

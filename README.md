@@ -5,6 +5,7 @@ batch
 
 ```javascript
 co(function *() {
+  var jobs = [];
   var batch = new Batch({
     concurrency: 2
   });

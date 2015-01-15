@@ -8,16 +8,11 @@ var counter = (function () {
   var c = 0;
   return function () {
     var i = c++;
-    return function *() {
-      console.log(i);
-      return i;
+    return function (cb) {
+      cb(null, i);
     };
   };
 })();
-
-batch.on('data', function (i) {
-  console.log(' - ' + i);
-});
 
 batch.write(counter());
 batch.write(counter());
@@ -33,9 +28,17 @@ batch.write(counter());
 batch.end(counter());
 
 co(function *() {
-  yield batch.done();
-}).catch(function (e) {
-  console.log(e.stack);
-}).then(function () {
-  console.log(123);
-});
+  while (batch.readable) {
+    let data = yield batch;
+    yield function (cb) {
+      setTimeout(cb, 100);
+    };
+    console.log(data);
+  }
+})
+  .then(function () {
+    console.log('done');
+  })
+  .catch(function (e) {
+    console.log(e.stack);
+  });

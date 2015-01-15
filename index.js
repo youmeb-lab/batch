@@ -4,6 +4,7 @@ var co = require('co');
 var util = require('util');
 var Transform = require('stream').Transform;
 var end = Transform.prototype.end;
+var push = Transform.prototype.push;
 var write = Transform.prototype.write;
 
 module.exports = Batch;
@@ -18,9 +19,17 @@ function Batch(options) {
   this.concurrency = options.concurrency || 5;
   this.running = 0;
   this.jobs = [];
+  this.results = [];
+  this.done = false;
   this._done = null;
   this.on('run', this.run.bind(this));
 }
+
+Object.defineProperty(batch, 'readable', {
+  get: function () {
+    return !this.done || this.results.length;
+  }
+});
 
 batch._transform = function (chunk, enc, cb) {
   if (chunk) {
@@ -85,10 +94,38 @@ batch.final = function () {
   this.running -= 1;
 
   if (this._done && !this.running && !this.jobs.length) {
+    this.done = true;
     this._done();
   } else {
     this.run();
   }
+};
+
+batch.push = function (data) {
+  this.results.push(data);
+  push.call(this, data);
+  return this;
+};
+
+batch.next = function () {
+  return {
+    done: true,
+    value: new Promise(function (resolve, reject) {
+      var res = this.results.shift();
+      
+      if (res) {
+        return resolve(res);
+      }
+
+      this.once('data', function () {
+        resolve(this.results.shift());
+      }.bind(this));
+    }.bind(this))
+  };
+};
+
+batch.throw = function (err) {
+  this.emit('error', err);
 };
 
 batch.done = function () {

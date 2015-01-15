@@ -1,0 +1,17 @@
+{
+  "name": "batch",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Po-Ying Chen <poying.me@gmail.com> (陳柏穎)",
+  "license": "MIT",
+  "dependencies": {
+    "co": "^4.1.0"
+  },
+  "devDependencies": {
+    "stream-array": "^1.0.1"
+  }
+}

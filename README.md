@@ -5,7 +5,6 @@ batch
 
 ```javascript
 co(function *() {
-  var jobs = [];
   var batch = new Batch({
     concurrency: 2
   });
@@ -17,7 +16,7 @@ co(function *() {
   batch.write(yieldable);
   batch.end(yieldable);
 
-  while (batch.done) {
+  while (!batch.done) {
     let data = yield batch;
     console.log(data);
   }

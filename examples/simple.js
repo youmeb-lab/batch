@@ -1,7 +1,7 @@
 'use strict';
 
 var co = require('co');
-var Batch = require('./');
+var Batch = require('../');
 var batch = new Batch();
 
 var counter = (function () {

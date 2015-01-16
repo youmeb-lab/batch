@@ -2,84 +2,77 @@
 
 var co = require('co');
 var util = require('util');
-var Transform = require('stream').Transform;
-var end = Transform.prototype.end;
-var push = Transform.prototype.push;
-var write = Transform.prototype.write;
+var Duplex = require('stream').Duplex;
+var end = Duplex.prototype.end;
+var push = Duplex.prototype.push;
 
 module.exports = Batch;
-util.inherits(Batch, Transform);
+util.inherits(Batch, Duplex);
 
 var batch = Batch.prototype;
 
 function Batch(options) {
   options || (options = {});
   options.objectMode = true;
-  Transform.call(this, options);
+  Duplex.call(this, options);
   this.concurrency = options.concurrency || 5;
+  this._yield = null;
+  this._needResult = false;
+  this._done = false;
   this.running = 0;
-  this.jobs = [];
+  this.waiting = [];
   this.results = [];
-  this.done = false;
-  this._done = null;
   this.on('run', this.run.bind(this));
 }
 
-Object.defineProperty(batch, 'readable', {
+Object.defineProperty(batch, 'done', {
   get: function () {
-    return !this.done || this.results.length;
+    return !this._done
+      || this.results.length;
   }
 });
 
-batch._transform = function (chunk, enc, cb) {
-  if (chunk) {
-    this.jobs.push(chunk);
-    this.run();
+batch._write = function (chunk, enc, cb) {
+  if (!chunk) {
+    return cb();
   }
-  cb();
+
+  if (!this.run(chunk, cb)) {
+    this.waiting.push({
+      job: chunk,
+      cb: cb
+    });
+  }
 };
 
-batch.write = function (chunk, enc, cb) {
+batch._read = function () {
   if (this._done) {
-    throw new Error('write after end');
+    this.push(null);
+    return;
+  }
+
+  var res = this.results.shift();
+
+  if (res) {
+    this.push(res);
   } else {
-    write.call(this, chunk, enc, cb);
+    this._needResult = true;
   }
-  return this;
 };
 
-batch.end = function (chunk, enc, cb) {
-  if (util.isFunction(chunk)
-    && chunk.constructor.name !== 'GeneratorFunction') {
-    cb = chunk;
-    chunk = null;
-    enc = null;
-  } else if (util.isFunction(enc)) {
-    cb = enc;
-    encoding = null;
-  }
-
-  if (!util.isNullOrUndefined(chunk)) {
-    this.write(chunk, enc);
-  }
-
-  this._done = end.bind(this);
-
-  return this;
+batch.end = function () {
+  this.write.apply(this, arguments);
+  end.call(this);
 };
 
-batch.run = function () {
+batch.run = function (job, cb) {
   if (this.running < this.concurrency) {
-    var job = this.jobs.shift();
-    
-    if (!job) {
-      return;
-    }
-
     this._run(job)
-      .then(this.push.bind(this))
+      .then(this.success.bind(this))
       .catch(this.emit.bind(this, 'error'))
-      .then(this.final.bind(this));
+      .then(this.final.bind(this))
+    cb();
+    return true;
   }
 };
 
@@ -90,21 +83,30 @@ batch._run = function (job) {
   });
 };
 
-batch.final = function () {
-  this.running -= 1;
-
-  if (this._done && !this.running && !this.jobs.length) {
-    this.done = true;
-    this._done();
+batch.success = function (res) {
+  if (this._needResult) {
+    this.push(res);
   } else {
-    this.run();
+    this.results.push(res);
   }
 };
 
-batch.push = function (data) {
-  this.results.push(data);
-  push.call(this, data);
-  return this;
+batch.final = function () {
+  this.running -= 1;
+  
+  var state = this._writableState;
+  var next = this.waiting.shift();
+  
+  next && this.run(next.job, next.cb);
+
+  if (state.ended && !next && !this.running) {
+    this._done = true;
+  }
+  
+  if (this._yield) {
+    this._yield(this.results.shift());
+    this._yield = null;
+  }
 };
 
 batch.next = function () {
@@ -117,20 +119,11 @@ batch.next = function () {
         return resolve(res);
       }
 
-      this.once('data', function () {
-        resolve(this.results.shift());
-      }.bind(this));
+      this._yield = resolve;
     }.bind(this))
   };
 };
 
 batch.throw = function (err) {
   this.emit('error', err);
-};
-
-batch.done = function () {
-  return (function (cb) {
-    this.once('error', cb);
-    this.once('end', cb);
-  }).bind(this);
 };

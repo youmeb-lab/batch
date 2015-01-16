@@ -9,7 +9,10 @@ var counter = (function () {
   return function () {
     var i = c++;
     return function (cb) {
-      cb(null, i);
+      console.log(' - ' +  i);
+      setTimeout(function () {
+        cb(null, i);
+      }, 200)
     };
   };
 })();
@@ -25,14 +28,11 @@ batch.write(counter());
 batch.write(counter());
 batch.write(counter());
 batch.write(counter());
-batch.end(counter());
+batch.end();
 
 co(function *() {
-  while (batch.readable) {
+  while (batch.done) {
     let data = yield batch;
-    yield function (cb) {
-      setTimeout(cb, 100);
-    };
     console.log(data);
   }
 })

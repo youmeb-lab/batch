@@ -31,8 +31,8 @@ function Batch(options) {
 
 Object.defineProperty(batch, 'done', {
   get: function () {
-    return !this._done
-      || this.results.length;
+    return this._done
+      && !this.results.length;
   }
 });
 

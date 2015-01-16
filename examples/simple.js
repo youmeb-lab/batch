@@ -31,7 +31,7 @@ batch.write(counter());
 batch.end();
 
 co(function *() {
-  while (batch.done) {
+  while (!batch.done) {
     let data = yield batch;
     console.log(data);
   }

@@ -12,6 +12,10 @@ util.inherits(Batch, Duplex);
 var batch = Batch.prototype;
 
 function Batch(options) {
+  if (!(this instanceof Batch)) {
+    return new Batch(options);
+  }
+
   options || (options = {});
   options.objectMode = true;
   Duplex.call(this, options);
